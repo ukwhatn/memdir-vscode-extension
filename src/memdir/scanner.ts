@@ -5,9 +5,13 @@ import { isMemdirContextDir, parseIssueFile, parseMemoryFile, parseTaskFile } fr
 import type {
   IssueScanResult,
   MemoryEntry,
+  MemoryFileEntry,
   MemoryScanResult,
+  MemorySubdirEntry,
   TaskEntry,
+  TaskFileEntry,
   TaskScanResult,
+  TaskSubdirEntry,
   WrapperDirEntry,
 } from "./types.js";
 
@@ -33,13 +37,14 @@ export async function scanMemoryDirectoryAt(dirPath: string): Promise<MemoryScan
   const { dirs, wrappers } = await splitDirEntries(dirPath);
   const memories: MemoryEntry[] = [];
   for (const d of dirs) {
-    const files = await listFiles(d.absolutePath);
     const stat = await safeStat(d.absolutePath);
+    const content = await scanMemoryContent(d.absolutePath);
     memories.push({
       name: d.name,
       absolutePath: d.absolutePath,
       mtime: stat?.mtimeMs ?? 0,
-      files: files.map((f) => parseMemoryFile(f.name, f.absolutePath)),
+      files: content.files,
+      subdirs: content.subdirs,
     });
   }
   return { memories, wrappers };
@@ -49,13 +54,14 @@ export async function scanTasksDirectoryAt(dirPath: string): Promise<TaskScanRes
   const { dirs, wrappers } = await splitDirEntries(dirPath);
   const tasks: TaskEntry[] = [];
   for (const d of dirs) {
-    const files = await listFiles(d.absolutePath);
     const stat = await safeStat(d.absolutePath);
+    const content = await scanTaskContent(d.absolutePath);
     tasks.push({
       name: d.name,
       absolutePath: d.absolutePath,
       mtime: stat?.mtimeMs ?? 0,
-      files: files.map((f) => parseTaskFile(f.name, f.absolutePath)),
+      files: content.files,
+      subdirs: content.subdirs,
     });
   }
   return { tasks, wrappers };
@@ -85,6 +91,68 @@ export async function scanIssuesDirectoryAt(dirPath: string): Promise<IssueScanR
   return { issues, wrappers };
 }
 
+async function scanMemoryContent(
+  dirPath: string,
+): Promise<{ files: MemoryFileEntry[]; subdirs: MemorySubdirEntry[] }> {
+  let dirents: import("node:fs").Dirent[];
+  try {
+    dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return { files: [], subdirs: [] };
+  }
+  const files: MemoryFileEntry[] = [];
+  const subdirs: MemorySubdirEntry[] = [];
+  for (const d of dirents) {
+    if (d.name.startsWith(".")) continue;
+    const abs = path.join(dirPath, d.name);
+    if (d.isFile()) {
+      files.push(parseMemoryFile(d.name, abs));
+    } else if (d.isDirectory()) {
+      const stat = await safeStat(abs);
+      const child = await scanMemoryContent(abs);
+      subdirs.push({
+        name: d.name,
+        absolutePath: abs,
+        mtime: stat?.mtimeMs ?? 0,
+        files: child.files,
+        subdirs: child.subdirs,
+      });
+    }
+  }
+  return { files, subdirs };
+}
+
+async function scanTaskContent(
+  dirPath: string,
+): Promise<{ files: TaskFileEntry[]; subdirs: TaskSubdirEntry[] }> {
+  let dirents: import("node:fs").Dirent[];
+  try {
+    dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return { files: [], subdirs: [] };
+  }
+  const files: TaskFileEntry[] = [];
+  const subdirs: TaskSubdirEntry[] = [];
+  for (const d of dirents) {
+    if (d.name.startsWith(".")) continue;
+    const abs = path.join(dirPath, d.name);
+    if (d.isFile()) {
+      files.push(parseTaskFile(d.name, abs));
+    } else if (d.isDirectory()) {
+      const stat = await safeStat(abs);
+      const child = await scanTaskContent(abs);
+      subdirs.push({
+        name: d.name,
+        absolutePath: abs,
+        mtime: stat?.mtimeMs ?? 0,
+        files: child.files,
+        subdirs: child.subdirs,
+      });
+    }
+  }
+  return { files, subdirs };
+}
+
 async function splitDirEntries(
   rootDir: string,
 ): Promise<{ dirs: WrapperDirEntry[]; wrappers: WrapperDirEntry[] }> {
@@ -106,17 +174,6 @@ async function splitDirEntries(
     }
   }
   return { dirs, wrappers };
-}
-
-async function listFiles(dir: string): Promise<{ name: string; absolutePath: string }[]> {
-  const dirents = await fs.readdir(dir, { withFileTypes: true });
-  const files: { name: string; absolutePath: string }[] = [];
-  for (const d of dirents) {
-    if (d.isFile()) {
-      files.push({ name: d.name, absolutePath: path.join(dir, d.name) });
-    }
-  }
-  return files;
 }
 
 async function safeStat(p: string): Promise<import("node:fs").Stats | undefined> {

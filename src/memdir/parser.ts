@@ -8,6 +8,8 @@ import {
 } from "../constants.js";
 import type { IssueEntry, MemoryFileEntry, TaskFileEntry } from "./types.js";
 
+const NUMBERED_FILE_PATTERN = /^(\d+)_(.+)\.md$/;
+
 export function parseMemoryFile(fileName: string, absolutePath: string): MemoryFileEntry {
   const standard = STANDARD_MEMORY_FILE_MAP.get(fileName);
   if (standard) {
@@ -20,6 +22,19 @@ export function parseMemoryFile(fileName: string, absolutePath: string): MemoryF
       label: fileName,
     };
   }
+  const match = NUMBERED_FILE_PATTERN.exec(fileName);
+  if (match) {
+    const num = Number.parseInt(match[1]!, 10);
+    const name = match[2]!.replace(/[-_]/g, " ");
+    return {
+      fileName,
+      absolutePath,
+      isStandard: false,
+      order: num,
+      icon: "file",
+      label: `${match[1]!.padStart(2, "0")}: ${name}`,
+    };
+  }
   return {
     fileName,
     absolutePath,
@@ -30,7 +45,7 @@ export function parseMemoryFile(fileName: string, absolutePath: string): MemoryF
   };
 }
 
-const TASK_FILE_PATTERN = /^(\d+)_(.+)\.md$/;
+const TASK_FILE_PATTERN = NUMBERED_FILE_PATTERN;
 
 export function parseTaskFile(fileName: string, absolutePath: string): TaskFileEntry {
   if (fileName === TASK_PLAN_FILE) {

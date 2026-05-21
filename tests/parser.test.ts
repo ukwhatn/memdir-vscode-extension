@@ -22,6 +22,20 @@ describe("parseMemoryFile", () => {
     expect(e.order).toBe(Number.POSITIVE_INFINITY);
     expect(e.icon).toBe("file");
   });
+
+  it("recognises numbered non-standard files (NN_name.md) with order + formatted label", () => {
+    const e = parseMemoryFile("01_confluence_prd.md", "/abs/01_confluence_prd.md");
+    expect(e.isStandard).toBe(false);
+    expect(e.order).toBe(1);
+    expect(e.icon).toBe("file");
+    expect(e.label).toBe("01: confluence prd");
+  });
+
+  it("zero-pads single-digit numbered filenames in label", () => {
+    const e = parseMemoryFile("3_phase.md", "/abs/3_phase.md");
+    expect(e.order).toBe(3);
+    expect(e.label).toBe("03: phase");
+  });
 });
 
 describe("parseTaskFile", () => {

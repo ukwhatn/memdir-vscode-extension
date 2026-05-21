@@ -46,12 +46,16 @@ Multi-root workspace では folder ごとに解決される。
 | `80_review.md` | comment-discussion |
 | `90_pr.md` | git-pull-request |
 | `99_history.md` | bookmark |
-| その他 | `[other]` グループに折りたたみ |
+| その他 | `NN_<name>.md` 形式は番号順 + `NN: <name>` ラベルに整形して `[other]` グループに折りたたみ、それ以外はファイル名のまま `[other]` グループ |
 
 ### Tasks View
 
 - `00_plan.md` を最上段固定
 - `XX_<subtask>.md` を `XX: <subtask>` のラベルで番号昇順
+
+### コンテキスト配下のサブディレクトリ（`phase1/` 等）
+
+Memory / Tasks の各コンテキストディレクトリ（`YYMMDD_<name>/`）配下に置かれた**任意の名前のサブディレクトリ**（例: `phase1/`, `phase2/`, `round1/`）を、folder アイコンで**折りたたみ表示**。展開すると内部のファイル・さらにネストされたサブディレクトリが同じ規則で再帰的に表示される（隠しディレクトリ `.foo` は除外）。Memory のサブディレクトリ内ファイルも `NN_<name>.md` 形式なら番号順 + 整形ラベル化される。
 
 ### Issues View
 

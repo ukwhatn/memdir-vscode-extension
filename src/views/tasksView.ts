@@ -6,15 +6,22 @@ import type {
   TaskEntry,
   TaskFileEntry,
   TaskScanResult,
+  TaskSubdirEntry,
   WrapperDirEntry,
 } from "../memdir/types.js";
 
 type FolderNode = { kind: "folder"; resolved: ResolvedMemoryDir };
 type WrapperNode = { kind: "wrapper"; wrapper: WrapperDirEntry };
 type TaskContextNode = { kind: "context"; entry: TaskEntry };
-type TaskFileNode = { kind: "file"; entry: TaskEntry; file: TaskFileEntry };
+type TaskSubdirNode = { kind: "subdir"; subdir: TaskSubdirEntry };
+type TaskFileNode = { kind: "file"; file: TaskFileEntry };
 
-type TaskNode = FolderNode | WrapperNode | TaskContextNode | TaskFileNode;
+type TaskNode = FolderNode | WrapperNode | TaskContextNode | TaskSubdirNode | TaskFileNode;
+
+type Container = {
+  files: TaskFileEntry[];
+  subdirs: TaskSubdirEntry[];
+};
 
 export class TasksTreeDataProvider implements vscode.TreeDataProvider<TaskNode> {
   private readonly _onDidChange = new vscode.EventEmitter<TaskNode | undefined | void>();
@@ -25,9 +32,7 @@ export class TasksTreeDataProvider implements vscode.TreeDataProvider<TaskNode> 
   }
 
   async getChildren(element?: TaskNode): Promise<TaskNode[]> {
-    const sortMode = vscode.workspace
-      .getConfiguration("memdir")
-      .get<"updated" | "name">("sort.directories", "updated");
+    const sortMode = getDirSortMode();
 
     if (!element) {
       const resolved = await resolveAll();
@@ -51,13 +56,11 @@ export class TasksTreeDataProvider implements vscode.TreeDataProvider<TaskNode> 
     }
 
     if (element.kind === "context") {
-      const sorted = [...element.entry.files].sort((a, b) => {
-        if (a.order !== b.order) {
-          return a.order - b.order;
-        }
-        return a.fileName.localeCompare(b.fileName);
-      });
-      return sorted.map<TaskFileNode>((file) => ({ kind: "file", entry: element.entry, file }));
+      return buildContainerChildren(element.entry, sortMode);
+    }
+
+    if (element.kind === "subdir") {
+      return buildContainerChildren(element.subdir, sortMode);
     }
 
     return [];
@@ -92,10 +95,22 @@ export class TasksTreeDataProvider implements vscode.TreeDataProvider<TaskNode> 
         vscode.TreeItemCollapsibleState.Collapsed,
       );
       item.iconPath = new vscode.ThemeIcon("rocket");
-      item.description = `${element.entry.files.length} files`;
+      item.description = describeContainerCount(element.entry);
       item.tooltip = element.entry.absolutePath;
       item.resourceUri = vscode.Uri.file(element.entry.absolutePath);
       item.contextValue = "memdir.tasks.context";
+      return item;
+    }
+    if (element.kind === "subdir") {
+      const item = new vscode.TreeItem(
+        element.subdir.name,
+        vscode.TreeItemCollapsibleState.Collapsed,
+      );
+      item.iconPath = new vscode.ThemeIcon("folder");
+      item.description = describeContainerCount(element.subdir);
+      item.tooltip = element.subdir.absolutePath;
+      item.resourceUri = vscode.Uri.file(element.subdir.absolutePath);
+      item.contextValue = "memdir.tasks.subdir";
       return item;
     }
     const item = new vscode.TreeItem(element.file.label, vscode.TreeItemCollapsibleState.None);
@@ -126,4 +141,42 @@ function buildContextLayer(
     .sort((a, b) => a.name.localeCompare(b.name))
     .map<WrapperNode>((wrapper) => ({ kind: "wrapper", wrapper }));
   return [...contexts, ...wrappers];
+}
+
+function buildContainerChildren(container: Container, sortMode: "updated" | "name"): TaskNode[] {
+  const sortedFiles = [...container.files].sort((a, b) => {
+    if (a.order !== b.order) {
+      return a.order - b.order;
+    }
+    return a.fileName.localeCompare(b.fileName);
+  });
+  const subdirs = sortSubdirs(container.subdirs, sortMode);
+
+  const children: TaskNode[] = sortedFiles.map<TaskFileNode>((file) => ({ kind: "file", file }));
+  for (const subdir of subdirs) {
+    children.push({ kind: "subdir", subdir });
+  }
+  return children;
+}
+
+function sortSubdirs(subdirs: TaskSubdirEntry[], mode: "updated" | "name"): TaskSubdirEntry[] {
+  if (mode === "name") {
+    return [...subdirs].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return [...subdirs].sort((a, b) => b.mtime - a.mtime);
+}
+
+function getDirSortMode(): "updated" | "name" {
+  return vscode.workspace
+    .getConfiguration("memdir")
+    .get<"updated" | "name">("sort.directories", "updated");
+}
+
+function describeContainerCount(container: Container): string {
+  const fileCount = container.files.length;
+  const subdirCount = container.subdirs.length;
+  if (subdirCount === 0) {
+    return `${fileCount} files`;
+  }
+  return `${fileCount} files, ${subdirCount} dirs`;
 }

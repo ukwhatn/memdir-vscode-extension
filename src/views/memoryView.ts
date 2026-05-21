@@ -6,6 +6,7 @@ import type {
   MemoryEntry,
   MemoryFileEntry,
   MemoryScanResult,
+  MemorySubdirEntry,
   ResolvedMemoryDir,
   WrapperDirEntry,
 } from "../memdir/types.js";
@@ -13,10 +14,16 @@ import type {
 type FolderNode = { kind: "folder"; resolved: ResolvedMemoryDir };
 type WrapperNode = { kind: "wrapper"; wrapper: WrapperDirEntry };
 type ContextNode = { kind: "context"; entry: MemoryEntry };
-type OtherGroupNode = { kind: "othergroup"; entry: MemoryEntry };
-type FileNode = { kind: "file"; entry: MemoryEntry; file: MemoryFileEntry };
+type SubdirNode = { kind: "subdir"; subdir: MemorySubdirEntry };
+type OtherGroupNode = { kind: "othergroup"; files: MemoryFileEntry[] };
+type FileNode = { kind: "file"; file: MemoryFileEntry };
 
-type MemoryNode = FolderNode | WrapperNode | ContextNode | OtherGroupNode | FileNode;
+type MemoryNode = FolderNode | WrapperNode | ContextNode | SubdirNode | OtherGroupNode | FileNode;
+
+type Container = {
+  files: MemoryFileEntry[];
+  subdirs: MemorySubdirEntry[];
+};
 
 export class MemoryTreeDataProvider implements vscode.TreeDataProvider<MemoryNode> {
   private readonly _onDidChange = new vscode.EventEmitter<MemoryNode | undefined | void>();
@@ -51,27 +58,21 @@ export class MemoryTreeDataProvider implements vscode.TreeDataProvider<MemoryNod
     }
 
     if (element.kind === "context") {
-      const standardFiles = element.entry.files
-        .filter((f) => f.isStandard)
-        .sort((a, b) => a.order - b.order);
-      const otherFiles = element.entry.files.filter((f) => !f.isStandard);
+      return buildContainerChildren(element.entry, sortMode);
+    }
 
-      const children: MemoryNode[] = standardFiles.map((file) => ({
-        kind: "file",
-        entry: element.entry,
-        file,
-      }));
-      if (otherFiles.length > 0) {
-        children.push({ kind: "othergroup", entry: element.entry });
-      }
-      return children;
+    if (element.kind === "subdir") {
+      return buildContainerChildren(element.subdir, sortMode);
     }
 
     if (element.kind === "othergroup") {
-      return element.entry.files
-        .filter((f) => !f.isStandard)
-        .sort((a, b) => a.fileName.localeCompare(b.fileName))
-        .map<FileNode>((file) => ({ kind: "file", entry: element.entry, file }));
+      return element.files
+        .slice()
+        .sort((a, b) => {
+          if (a.order !== b.order) return a.order - b.order;
+          return a.fileName.localeCompare(b.fileName);
+        })
+        .map<FileNode>((file) => ({ kind: "file", file }));
     }
 
     return [];
@@ -107,9 +108,21 @@ export class MemoryTreeDataProvider implements vscode.TreeDataProvider<MemoryNod
       );
       item.iconPath = new vscode.ThemeIcon("calendar");
       item.tooltip = buildContextTooltip(element.entry);
-      item.description = `${element.entry.files.length} files`;
+      item.description = describeContainerCount(element.entry);
       item.resourceUri = vscode.Uri.file(element.entry.absolutePath);
       item.contextValue = "memdir.memory.context";
+      return item;
+    }
+    if (element.kind === "subdir") {
+      const item = new vscode.TreeItem(
+        element.subdir.name,
+        vscode.TreeItemCollapsibleState.Collapsed,
+      );
+      item.iconPath = new vscode.ThemeIcon("folder");
+      item.tooltip = element.subdir.absolutePath;
+      item.description = describeContainerCount(element.subdir);
+      item.resourceUri = vscode.Uri.file(element.subdir.absolutePath);
+      item.contextValue = "memdir.memory.subdir";
       return item;
     }
     if (element.kind === "othergroup") {
@@ -147,11 +160,35 @@ function buildContextLayer(
   return [...contexts, ...wrappers];
 }
 
+function buildContainerChildren(container: Container, sortMode: "updated" | "name"): MemoryNode[] {
+  const standardFiles = container.files
+    .filter((f) => f.isStandard)
+    .sort((a, b) => a.order - b.order);
+  const otherFiles = container.files.filter((f) => !f.isStandard);
+  const subdirs = sortSubdirs(container.subdirs, sortMode);
+
+  const children: MemoryNode[] = standardFiles.map<FileNode>((file) => ({ kind: "file", file }));
+  if (otherFiles.length > 0) {
+    children.push({ kind: "othergroup", files: otherFiles });
+  }
+  for (const subdir of subdirs) {
+    children.push({ kind: "subdir", subdir });
+  }
+  return children;
+}
+
 function sortEntries(entries: MemoryEntry[], mode: "updated" | "name"): MemoryEntry[] {
   if (mode === "name") {
     return [...entries].sort((a, b) => b.name.localeCompare(a.name));
   }
   return [...entries].sort((a, b) => b.mtime - a.mtime);
+}
+
+function sortSubdirs(subdirs: MemorySubdirEntry[], mode: "updated" | "name"): MemorySubdirEntry[] {
+  if (mode === "name") {
+    return [...subdirs].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return [...subdirs].sort((a, b) => b.mtime - a.mtime);
 }
 
 function getDirSortMode(): "updated" | "name" {
@@ -160,7 +197,23 @@ function getDirSortMode(): "updated" | "name" {
     .get<"updated" | "name">("sort.directories", "updated");
 }
 
+function describeContainerCount(container: Container): string {
+  const fileCount = container.files.length;
+  const subdirCount = container.subdirs.length;
+  if (subdirCount === 0) {
+    return `${fileCount} files`;
+  }
+  return `${fileCount} files, ${subdirCount} dirs`;
+}
+
 function buildContextTooltip(entry: MemoryEntry): string {
   const last = new Date(entry.mtime).toISOString().replace(/\..+$/, "");
-  return `${entry.absolutePath}\nfiles: ${entry.files.length}\nupdated: ${last}\nrelative: ${path.basename(entry.absolutePath)}`;
+  const lines = [
+    entry.absolutePath,
+    `files: ${entry.files.length}`,
+    `subdirs: ${entry.subdirs.length}`,
+    `updated: ${last}`,
+    `relative: ${path.basename(entry.absolutePath)}`,
+  ];
+  return lines.join("\n");
 }

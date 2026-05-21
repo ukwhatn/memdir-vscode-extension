@@ -5,6 +5,15 @@ export type MemoryEntry = {
   absolutePath: string;
   mtime: number;
   files: MemoryFileEntry[];
+  subdirs: MemorySubdirEntry[];
+};
+
+export type MemorySubdirEntry = {
+  name: string;
+  absolutePath: string;
+  mtime: number;
+  files: MemoryFileEntry[];
+  subdirs: MemorySubdirEntry[];
 };
 
 export type MemoryFileEntry = {
@@ -21,6 +30,15 @@ export type TaskEntry = {
   absolutePath: string;
   mtime: number;
   files: TaskFileEntry[];
+  subdirs: TaskSubdirEntry[];
+};
+
+export type TaskSubdirEntry = {
+  name: string;
+  absolutePath: string;
+  mtime: number;
+  files: TaskFileEntry[];
+  subdirs: TaskSubdirEntry[];
 };
 
 export type TaskFileEntry = {
