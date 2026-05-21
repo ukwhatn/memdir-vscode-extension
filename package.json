@@ -1,0 +1,238 @@
+{
+  "name": "memdir",
+  "displayName": "Memdir",
+  "description": "Browse .local/ memory, tasks, and issues from the Activity Bar",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "ukwhatn-local",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": ["Other"],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "memdir-memory",
+          "title": "Memdir Memory",
+          "icon": "$(notebook)"
+        },
+        {
+          "id": "memdir-tasks",
+          "title": "Memdir Tasks",
+          "icon": "$(list-tree)"
+        },
+        {
+          "id": "memdir-issues",
+          "title": "Memdir Issues",
+          "icon": "$(warning)"
+        }
+      ]
+    },
+    "views": {
+      "memdir-memory": [
+        {
+          "id": "memdir.memoryView",
+          "name": "Memory",
+          "icon": "$(notebook)",
+          "contextualTitle": "Memdir Memory"
+        }
+      ],
+      "memdir-tasks": [
+        {
+          "id": "memdir.tasksView",
+          "name": "Tasks",
+          "icon": "$(list-tree)",
+          "contextualTitle": "Memdir Tasks"
+        }
+      ],
+      "memdir-issues": [
+        {
+          "id": "memdir.issuesView",
+          "name": "Issues",
+          "icon": "$(warning)",
+          "contextualTitle": "Memdir Issues"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "memdir.memoryView",
+        "contents": "MEMORY_DIR not found.\n[Open Settings](command:memdir.openSettings)"
+      },
+      {
+        "view": "memdir.tasksView",
+        "contents": "MEMORY_DIR not found.\n[Open Settings](command:memdir.openSettings)"
+      },
+      {
+        "view": "memdir.issuesView",
+        "contents": "MEMORY_DIR not found.\n[Open Settings](command:memdir.openSettings)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "memdir.refresh",
+        "title": "Memdir: Refresh All Views",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "memdir.refreshMemory",
+        "title": "Memdir: Refresh Memory",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "memdir.refreshTasks",
+        "title": "Memdir: Refresh Tasks",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "memdir.refreshIssues",
+        "title": "Memdir: Refresh Issues",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "memdir.openSettings",
+        "title": "Memdir: Open Settings"
+      },
+      {
+        "command": "memdir.revealInOS",
+        "title": "Reveal in Finder/Explorer"
+      },
+      {
+        "command": "memdir.copyPath",
+        "title": "Copy Absolute Path"
+      },
+      {
+        "command": "memdir.copyRelativePath",
+        "title": "Copy Relative Path"
+      },
+      {
+        "command": "memdir.issues.toggleGroupBy",
+        "title": "Memdir: Toggle Issues Grouping",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "memdir.issues.filter",
+        "title": "Memdir: Filter Issues by Title",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "memdir.issues.clearFilter",
+        "title": "Memdir: Clear Issues Filter",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "memdir.issues.filterBySeverity",
+        "title": "Memdir: Filter Issues by Severity",
+        "icon": "$(filter)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "memdir.refreshMemory",
+          "when": "view == memdir.memoryView",
+          "group": "navigation"
+        },
+        {
+          "command": "memdir.refreshTasks",
+          "when": "view == memdir.tasksView",
+          "group": "navigation"
+        },
+        {
+          "command": "memdir.refreshIssues",
+          "when": "view == memdir.issuesView",
+          "group": "navigation"
+        },
+        {
+          "command": "memdir.issues.toggleGroupBy",
+          "when": "view == memdir.issuesView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "memdir.issues.filter",
+          "when": "view == memdir.issuesView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "memdir.issues.filterBySeverity",
+          "when": "view == memdir.issuesView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "memdir.issues.clearFilter",
+          "when": "view == memdir.issuesView && memdir.issues.hasFilter",
+          "group": "navigation@4"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "memdir.revealInOS",
+          "when": "view =~ /^memdir\\./",
+          "group": "memdir@1"
+        },
+        {
+          "command": "memdir.copyPath",
+          "when": "view =~ /^memdir\\./",
+          "group": "memdir@2"
+        },
+        {
+          "command": "memdir.copyRelativePath",
+          "when": "view =~ /^memdir\\./",
+          "group": "memdir@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Memdir",
+      "properties": {
+        "memdir.directoryPath": {
+          "type": "string",
+          "default": "",
+          "description": "MEMORY_DIR を直接指定（相対 or 絶対）。空の場合は CLAUDE.md の MEMORY_DIR、最終的に .local/ にフォールバック。"
+        },
+        "memdir.issues.groupBy": {
+          "type": "string",
+          "enum": ["severity", "perspective"],
+          "default": "severity",
+          "description": "Issues View のグループ化軸"
+        },
+        "memdir.issues.hideEmptyGroups": {
+          "type": "boolean",
+          "default": true,
+          "description": "Issues View で空グループを非表示にする"
+        },
+        "memdir.sort.directories": {
+          "type": "string",
+          "enum": ["updated", "name"],
+          "default": "updated",
+          "description": "memory/tasks ディレクトリの並び順"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src tests",
+    "format": "biome format --write src tests",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "vsce package --no-dependencies --allow-missing-repository --out memdir.vsix",
+    "vscode:prepublish": "node esbuild.config.mjs --production"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.84.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}
